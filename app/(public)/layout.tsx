@@ -56,7 +56,11 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-white/30 text-xs tracking-wide">
             <p>© {new Date().getFullYear()} Wig Repair Studio. All rights reserved.</p>
-            <Link href="/admin/login" className="hover:text-white/60 transition-colors">Admin</Link>
+            <div className="flex items-center gap-6">
+              <Link href="/privacy" className="hover:text-white/60 transition-colors">Privacy Policy</Link>
+              <Link href="/terms" className="hover:text-white/60 transition-colors">Terms of Service</Link>
+              <Link href="/admin/login" className="hover:text-white/60 transition-colors">Admin</Link>
+            </div>
           </div>
         </div>
       </footer>
