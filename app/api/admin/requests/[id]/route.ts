@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getServiceClient } from '@/lib/supabase/service';
 import { UpdateRequestSchema } from '@/lib/validations';
+import { sendStatusUpdate } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,8 +29,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const data = parsed.data;
   const db = getServiceClient();
 
-  // Get current status for history
-  const { data: current } = await db.from('requests').select('status').eq('id', id).single();
+  // Fetch current record for status comparison + customer details for email
+  const { data: current } = await db
+    .from('requests')
+    .select('status, customer_email, customer_name, order_number')
+    .eq('id', id)
+    .single();
 
   const { error } = await db.from('requests').update({
     ...data,
@@ -40,13 +45,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Failed to update request.' }, { status: 500 });
   }
 
+  const statusChanged = data.status && current && data.status !== current.status;
+
   // Log status change in history
-  if (data.status && current && data.status !== current.status) {
+  if (statusChanged) {
     await db.from('status_history').insert({
       request_id: id,
       status: data.status,
       note: `Status updated to "${data.status}" by admin.`,
     });
+  }
+
+  // Send status update email (non-blocking)
+  if (statusChanged && current?.customer_email) {
+    sendStatusUpdate({
+      to: current.customer_email,
+      customerName: current.customer_name,
+      orderNumber: current.order_number,
+      status: data.status!,
+      customerVisibleNotes: data.customer_visible_notes,
+    }).catch(err => console.error('Status email failed:', err));
   }
 
   return NextResponse.json({ ok: true });

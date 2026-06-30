@@ -3,6 +3,7 @@ import { getServiceClient } from '@/lib/supabase/service';
 import { RepairRequestSchema, NewWigRequestSchema } from '@/lib/validations';
 import { generateOrderNumber } from '@/lib/orderNumber';
 import { rateLimit } from '@/lib/rateLimit';
+import { sendOrderConfirmation } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +74,14 @@ export async function POST(request: NextRequest) {
       note: 'Request submitted by customer.',
     });
   }
+
+  // Send confirmation email (non-blocking — don't fail the request if email fails)
+  sendOrderConfirmation({
+    to: data.customer_email,
+    customerName: data.customer_name,
+    orderNumber: order_number,
+    serviceType: service_type as 'repair' | 'new_wig',
+  }).catch(err => console.error('Confirmation email failed:', err));
 
   return NextResponse.json({ ok: true, order_number });
 }
