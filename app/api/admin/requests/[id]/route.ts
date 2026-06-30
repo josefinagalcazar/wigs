@@ -12,6 +12,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
+
+  // Reject non-UUID values before they touch the DB
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json({ error: 'Invalid request ID' }, { status: 400 });
+  }
+
   const body = await request.json();
 
   const parsed = UpdateRequestSchema.safeParse(body);

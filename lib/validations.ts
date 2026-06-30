@@ -48,7 +48,10 @@ export const AdminLoginSchema = z.object({
 });
 
 export const UpdateRequestSchema = z.object({
-  status: z.string().optional(),
+  status: z.enum([
+    'Request Received', 'Quote Sent', 'Waiting for Wig', 'In Repair',
+    'Ready for Payment', 'Shipped Back', 'Completed', 'Canceled',
+  ]).optional(),
   quote_amount: z.number().nonnegative().nullable().optional(),
   deposit_amount: z.number().nonnegative().nullable().optional(),
   final_balance: z.number().nonnegative().nullable().optional(),

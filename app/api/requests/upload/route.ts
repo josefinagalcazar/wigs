@@ -7,6 +7,15 @@ export const dynamic = 'force-dynamic';
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
+// Validate actual file bytes — can't be spoofed by the client
+function isValidImageBytes(bytes: Uint8Array): boolean {
+  const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const png = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  const webp = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  return jpeg || png || webp;
+}
+
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
   if (!rateLimit(`upload:${ip}`, 20, 60 * 60 * 1000)) {
@@ -19,13 +28,22 @@ export async function POST(request: NextRequest) {
 
   if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
-  // Validate file type server-side (not just extension)
+  // Check declared MIME type first (fast)
   if (!ALLOWED_TYPES.includes(file.type)) {
     return NextResponse.json({ error: 'Only JPEG, PNG, and WebP images are allowed.' }, { status: 400 });
   }
 
+  // Check size before reading into memory
   if (file.size > MAX_SIZE) {
     return NextResponse.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 400 });
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = new Uint8Array(arrayBuffer);
+
+  // Validate actual file magic bytes — prevents disguised executables
+  if (!isValidImageBytes(buffer)) {
+    return NextResponse.json({ error: 'Invalid image file.' }, { status: 400 });
   }
 
   const ext = file.type.split('/')[1].replace('jpeg', 'jpg');
@@ -33,9 +51,6 @@ export async function POST(request: NextRequest) {
   const random = Math.random().toString(36).substring(2, 7);
   const safeName = (photoType ?? 'photo').toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40);
   const path = `uploads/${timestamp}-${random}/${safeName}.${ext}`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = new Uint8Array(arrayBuffer);
 
   const db = getServiceClient();
   const { error: uploadError } = await db.storage
